@@ -20,7 +20,7 @@ jobs:
         python-version: '3.11'
     
     - name: Run script
-      run: ReportPublicationChecker.py
+      run: python parliament_reports.py
       
     - name: Commit and push if changed
       run: |
