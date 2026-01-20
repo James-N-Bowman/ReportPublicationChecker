@@ -94,14 +94,28 @@ def filter_and_process_reports(api_url, csv_filename):
         pub_date = pub_start_datetime.strftime('%Y-%m-%d')
         pub_time = pub_start_datetime.strftime('%H:%M:%S')
         
+        # Extract HC number information
+        hc_number_obj = item.get('hcNumber', {})
+        hc_number = hc_number_obj.get('number', '') if hc_number_obj else ''
+        session_description = hc_number_obj.get('sessionDescription', '') if hc_number_obj else ''
+        
+        # Get current date and time when script runs
+        run_datetime = datetime.now()
+        run_date = run_datetime.strftime('%Y-%m-%d')
+        run_time = run_datetime.strftime('%H:%M:%S')
+        
         # Add row
         rows_to_add.append([
+            hc_number,
+            session_description,
             committee_name,
             house,
             title,
             ordinal,
             pub_date,
-            pub_time
+            pub_time,
+            run_date,
+            run_time
         ])
     
     # Check if file exists to determine if we need to write headers
@@ -114,12 +128,16 @@ def filter_and_process_reports(api_url, csv_filename):
         # Write header only if file is new
         if not file_exists:
             writer.writerow([
+                'HC Number',
+                'Session',
                 'Committee Name',
                 'House',
                 'Report Title',
                 'Report Ordinal',
                 'Publication Date',
-                'Publication Time'
+                'Publication Time',
+                'Script Run Date',
+                'Script Run Time'
             ])
         
         # Write data rows
