@@ -3,7 +3,7 @@ name: Update Parliamentary Reports
 on:
   schedule:
     # Run every day at 00:05 UTC
-    - cron: '5 0 * * *'
+    - cron: '5 0,1,9,10,11,12 * * *'
   workflow_dispatch:  # Allows manual trigger from GitHub UI
 
 jobs:
