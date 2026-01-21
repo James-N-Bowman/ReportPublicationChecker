@@ -28,5 +28,5 @@ jobs:
       run: |
         git config --global user.name 'GitHub Actions Bot'
         git config --global user.email 'actions@github.com'
-        git add reports.csv
+        git add reports.csv scans.csv
         git diff --quiet && git diff --staged --quiet || (git commit -m "Update reports - $(date +'%Y-%m-%d %H:%M')" && git push)
