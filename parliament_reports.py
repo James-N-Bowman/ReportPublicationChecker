@@ -44,6 +44,33 @@ def split_report_title(input_string):
         return ("", input_string)
 
 
+def get_existing_publication_ids(csv_filename):
+    """
+    Read the CSV file and return a set of existing publication IDs.
+    
+    Args:
+        csv_filename: Path to CSV file
+        
+    Returns:
+        set: Set of publication IDs already in the file
+    """
+    existing_ids = set()
+    
+    # Check if file exists
+    if not os.path.isfile(csv_filename):
+        return existing_ids
+    
+    # Read existing IDs from CSV
+    with open(csv_filename, 'r', encoding='utf-8') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            pub_id = row.get('Publication ID', '').strip()
+            if pub_id:
+                existing_ids.add(pub_id)
+    
+    return existing_ids
+
+
 def filter_and_process_reports(api_url, csv_filename):
     """
     Fetch reports from API, filter by criteria, and append to CSV file.
@@ -58,11 +85,21 @@ def filter_and_process_reports(api_url, csv_filename):
     # Get today's date (date only, no time)
     today = datetime.now().date()
     
+    # Get existing publication IDs
+    existing_ids = get_existing_publication_ids(csv_filename)
+    
     # Prepare rows to add
     rows_to_add = []
     
     # Process each item
     for item in data.get('items', []):
+        # Extract publication ID
+        pub_id = str(item.get('id', ''))
+        
+        # Skip if this publication ID already exists
+        if pub_id in existing_ids:
+            continue
+        
         # Extract committee house
         committee = item.get('committee', {})
         house = committee.get('house', '')
@@ -106,6 +143,7 @@ def filter_and_process_reports(api_url, csv_filename):
         
         # Add row
         rows_to_add.append([
+            pub_id,
             hc_number,
             session_description,
             committee_name,
@@ -128,6 +166,7 @@ def filter_and_process_reports(api_url, csv_filename):
         # Write header only if file is new
         if not file_exists:
             writer.writerow([
+                'Publication ID',
                 'HC Number',
                 'Session',
                 'Committee Name',
