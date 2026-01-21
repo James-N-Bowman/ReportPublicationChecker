@@ -315,8 +315,8 @@ def filter_and_process_reports(api_url, csv_filename, scans_csv_filename):
         house = committee.get('house', '')
         
         # Filter: only Commons or Joint
-        if house not in ['Commons', 'Joint']:
-            continue
+        # if house not in ['Commons', 'Joint']:
+        #    continue
         
         # Extract and parse publication start date
         pub_start_date_str = item.get('publicationStartDate', '')
