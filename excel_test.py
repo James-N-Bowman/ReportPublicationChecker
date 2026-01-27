@@ -1,17 +1,18 @@
 from __future__ import annotations
 import base64
-from datetime import datetime, date, time
 import json
 import os
 import re
 import urllib.request
+from datetime import datetime, date, time
 from time import sleep
 from typing import Dict, List, Optional, Union
 
-from lxml import html  # requires: pip install lxml
 import openpyxl
 import requests
 import xlsxwriter
+from lxml import html
+
 
 # ============================================================================
 # EXCEL UTILITIES
@@ -442,11 +443,24 @@ def fetch_document_html_as_lxml(
 
 def parse_committee_reports_published_today(
     doc: html.HtmlElement,
+    existing_order_papers: List[Dict[str, str]] = None
 ) -> Optional[List[Dict[str, str]]]:
     """
     Parse 'Committee Reports Published Today' section from lxml HTML element.
     Returns: list of dictionaries with report data, or None if section not found.
+    Filters out duplicates based on existing order papers.
     """
+    if existing_order_papers is None:
+        existing_order_papers = []
+    
+    # Build set of existing (Order Paper date, HC Number) tuples for deduplication
+    existing_keys = set()
+    for op in existing_order_papers:
+        op_date = op.get('Order Paper date', '').strip()
+        hc_num = op.get('HC Number', '').strip()
+        if op_date and hc_num:
+            existing_keys.add((op_date, hc_num))
+    
     def _norm(s: str | None) -> str:
         return " ".join((s or "").split())
     
@@ -512,17 +526,20 @@ def parse_committee_reports_published_today(
                     hc_number = txt
                     break
             
-            item = {
-                'Order Paper date': str(op_date),
-                'Committee name': committee,
-                'Report description': report_description,
-                'HC Number': hc_number,
-                'Publication date': str(op_rep_date),
-                'Publication time': str(op_rep_time),
-                'HC matched': '',
-                'Status': ''
-            }
-            results.append(item)
+            # Check if this combination already exists
+            op_date_str = str(op_date)
+            if (op_date_str, hc_number) not in existing_keys:
+                item = {
+                    'Order Paper date': op_date_str,
+                    'Committee name': committee,
+                    'Report description': report_description,
+                    'HC Number': hc_number,
+                    'Publication date': str(op_rep_date),
+                    'Publication time': str(op_rep_time),
+                    'HC matched': '',
+                    'Status': ''
+                }
+                results.append(item)
         
         sib = sib.getnext()
     
@@ -805,7 +822,7 @@ if __name__ == '__main__':
         all_order_papers = read_excel_sheet(EXCEL_FILE, ORDER_PAPERS_SHEET)
     
     # 2. Process committee reports from API
-    API_URL = 'https://committees-api.parliament.uk/api/Publications?PublicationTypeIds=1&SortOrder=PublicationDateDescending&Take=50&StartDate=2024-07-01'
+    API_URL = 'https://committees-api.parliament.uk/api/Publications?PublicationTypeIds=1&PublicationTypeIds=12&SortOrder=PublicationDateDescending'
     
     new_reports, new_scan_ids = filter_and_process_reports(
         API_URL, EXCEL_FILE, REPORTS_SHEET, SCANS_SHEET
@@ -827,10 +844,10 @@ if __name__ == '__main__':
     doc_id = get_document_id_for_date(datetime(2026, 1, 22))
     if doc_id:
         my_html = fetch_document_html_as_lxml(doc_id)
-        op_data = parse_committee_reports_published_today(my_html)
+        op_data = parse_committee_reports_published_today(my_html, all_order_papers)
         if op_data:
             all_order_papers.extend(op_data)
-            print(f"Added {len(op_data)} order paper entries")
+            print(f"Added {len(op_data)} new order paper entries")
     else:
         print("Could not find order paper document for specified date")
     
@@ -865,4 +882,4 @@ if __name__ == '__main__':
     print(f"\nData written to {EXCEL_FILE}")
     print(f"  - {REPORTS_SHEET}: {len(all_reports)} rows")
     print(f"  - {SCANS_SHEET}: {len(all_scans)} rows")
-    print(f"  - {ORDER_PAPERS_SHEET}: {len(all_order_papers)} rows")
+    print(f"  - {ORDER_PAPERS_SHEET}: {len(all_order_papers)} rows")f
