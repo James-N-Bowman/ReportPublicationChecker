@@ -8,10 +8,10 @@ import urllib.request
 from time import sleep
 from typing import Dict, List, Optional, Union
 
-import requests
 from lxml import html  # requires: pip install lxml
+import openpyxl
+import requests
 import xlsxwriter
-
 
 # ============================================================================
 # EXCEL UTILITIES
@@ -76,7 +76,6 @@ class ExcelWorkbook:
 def read_excel_sheet(filename: str, sheet_name: str) -> List[Dict[str, str]]:
     """Read data from an Excel worksheet."""
     try:
-        import openpyxl
         workbook = openpyxl.load_workbook(filename, data_only=True)
         
         if sheet_name not in workbook.sheetnames:
@@ -657,6 +656,62 @@ def calculate_lateness(filename: str, reports_sheet: str, scans_sheet: str) -> L
         report['Late by min'] = late_by_min if late_by_min else ''
     
     return reports
+
+
+def match_order_papers_to_reports(order_papers: List[Dict[str, str]], 
+                                   reports: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    """
+    Match order papers to published reports by HC Number.
+    Updates 'HC matched' field based on whether matching reports are found.
+    
+    Returns: Updated list of order paper dictionaries
+    """
+    # Build index of HC Numbers from Reports for fast lookup
+    reports_hc_numbers = set()
+    for report in reports:
+        hc_num = report.get('HC Number', '').strip()
+        if hc_num:
+            reports_hc_numbers.add(hc_num)
+    
+    # Get current datetime for comparison
+    now = datetime.now()
+    
+    # Process each order paper entry
+    for op_row in order_papers:
+        hc_matched = op_row.get('HC matched', '').strip()
+        
+        # Skip if already marked as Published or OP Error
+        if hc_matched in ('Published', 'OP Error'):
+            continue
+        
+        # Get HC Number from order paper
+        op_hc_number = op_row.get('HC Number', '').strip()
+        
+        if not op_hc_number:
+            continue
+        
+        # Check if this HC Number exists in Reports
+        if op_hc_number in reports_hc_numbers:
+            op_row['HC matched'] = 'Published'
+        else:
+            # No match found - check if publication time has passed
+            pub_date_str = op_row.get('Publication date', '').strip()
+            pub_time_str = op_row.get('Publication time', '').strip()
+            
+            if pub_date_str and pub_time_str:
+                try:
+                    # Parse publication datetime
+                    pub_datetime = datetime.strptime(f"{pub_date_str} {pub_time_str}", '%Y-%m-%d %H:%M:%S')
+                    
+                    if now > pub_datetime:
+                        op_row['HC matched'] = 'Missing'
+                    else:
+                        op_row['HC matched'] = 'Due'
+                except ValueError:
+                    # If we can't parse the date/time, leave HC matched as is
+                    pass
+    
+    return order_papers
 
 
 def filter_and_process_reports(api_url: str, filename: str, 
