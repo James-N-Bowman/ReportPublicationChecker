@@ -841,7 +841,7 @@ if __name__ == '__main__':
     all_scans.append(scan_record)
     
     # 3. Process order papers
-    doc_id = get_document_id_for_date(datetime(2026, 1, 22))
+    doc_id = get_document_id_for_date(scan_datetime)
     if doc_id:
         my_html = fetch_document_html_as_lxml(doc_id)
         op_data = parse_committee_reports_published_today(my_html, all_order_papers)
