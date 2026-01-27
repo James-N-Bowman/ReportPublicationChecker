@@ -29,6 +29,9 @@ jobs:
 
     - name: Install XlsxWriter
       run: pip install XlsxWriter
+
+    - name: Install lxml
+      run: pip install lxml
         
     - name: Run script
       run: python excel_test.py
