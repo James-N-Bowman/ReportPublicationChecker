@@ -882,4 +882,4 @@ if __name__ == '__main__':
     print(f"\nData written to {EXCEL_FILE}")
     print(f"  - {REPORTS_SHEET}: {len(all_reports)} rows")
     print(f"  - {SCANS_SHEET}: {len(all_scans)} rows")
-    print(f"  - {ORDER_PAPERS_SHEET}: {len(all_order_papers)} rows")f
+    print(f"  - {ORDER_PAPERS_SHEET}: {len(all_order_papers)} rows")
