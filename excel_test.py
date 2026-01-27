@@ -846,7 +846,12 @@ if __name__ == '__main__':
         # Now calculate lateness
         all_reports = calculate_lateness(EXCEL_FILE, REPORTS_SHEET, SCANS_SHEET)
     
-    # 5. Write final Excel file with all data as tables
+    # 5. Match order papers to reports
+    if all_order_papers and all_reports:
+        all_order_papers = match_order_papers_to_reports(all_order_papers, all_reports)
+        print(f"Matched order papers to reports")
+    
+    # 6. Write final Excel file with all data as tables
     with ExcelWorkbook(EXCEL_FILE) as wb:
         if all_reports:
             wb.add_data(REPORTS_SHEET, all_reports)
