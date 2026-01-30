@@ -305,6 +305,7 @@ def get_document_id_for_date(
         skip = 0
         pages_visited = 0
         total_results = None
+        closest_after = None  # Track (date, id) tuple for closest date after target
         
         while pages_visited < max_pages:
             url = base_url.format(skip)
@@ -345,13 +346,24 @@ def get_document_id_for_date(
                 
                 if bd is None:
                     continue
-                
+                    
+                # If we've gone past target into older dates, stop searching
                 if bd < target:
-                    return None
+                    # Return exact match if found, otherwise closest after target
+                    return closest_after[1] if closest_after else None
                 
+                # Exact match with correct notes - return immediately
                 if bd == target and (item.get("Notes") or "") == notes_text:
                     the_id = item.get("Id")
                     return int(the_id) if the_id is not None else None
+                
+                # Track closest date after target (bd > target)
+                if bd > target:
+                    the_id = item.get("Id")
+                    if the_id is not None:
+                        # Keep the smallest date that's still greater than target
+                        if closest_after is None or bd < closest_after[0]:
+                            closest_after = (bd, int(the_id))
             
             skip += page_size
             pages_visited += 1
