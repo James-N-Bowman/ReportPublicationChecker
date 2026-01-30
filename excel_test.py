@@ -280,7 +280,7 @@ def get_document_id_for_date(
     page_size: int = 20,
     timeout: int = 15,
     max_pages: int = 200,
-    notes_text: str = "Today's business in the Chamber and Westminster Hall.",
+    target_notes_text: str = "Today's business in the Chamber and Westminster Hall.",
     retry_attempts: int = 3,
     retry_backoff: float = 0.8,
     session: Optional[requests.Session] = None,
@@ -346,19 +346,21 @@ def get_document_id_for_date(
                 
                 if bd is None:
                     continue
+
+                notes = item.get("Notes")
                     
                 # If we've gone past target into older dates, stop searching
-                if bd < target:
+                if bd < target and notes == target_notes_text:
                     # Return exact match if found, otherwise closest after target
                     return closest_after[1] if closest_after else None
                 
                 # Exact match with correct notes - return immediately
-                if bd == target and (item.get("Notes") or "") == notes_text:
+                if bd == target and notes == target_notes_text:
                     the_id = item.get("Id")
                     return int(the_id) if the_id is not None else None
                 
                 # Track closest date after target (bd > target)
-                if bd > target:
+                if bd > target and notes == target_notes_text:
                     the_id = item.get("Id")
                     if the_id is not None:
                         # Keep the smallest date that's still greater than target
