@@ -36,7 +36,7 @@ jobs:
       run: pip install lxml
         
     - name: Run script
-      run: python excel_test.py
+      run: python reportMonitor.py
       
     - name: Commit and push if changed
       run: |
