@@ -280,7 +280,7 @@ def get_document_id_for_date(
     page_size: int = 20,
     timeout: int = 15,
     max_pages: int = 200,
-    target_notes_text: str = "Today's business in the Chamber and Westminster Hall.",
+    target_notes_text: str = "Today's business in the Chamber and Westminster Hall",
     retry_attempts: int = 3,
     retry_backoff: float = 0.8,
     session: Optional[requests.Session] = None,
@@ -350,17 +350,17 @@ def get_document_id_for_date(
                 notes = item.get("Notes")
                     
                 # If we've gone past target into older dates, stop searching
-                if bd < target and notes == target_notes_text:
+                if bd < target and notes is not None and target_notes_text in notes:
                     # Return exact match if found, otherwise closest after target
                     return closest_after[1] if closest_after else None
                 
                 # Exact match with correct notes - return immediately
-                if bd == target and notes == target_notes_text:
+                if bd == target and notes is not None and target_notes_text in notes:
                     the_id = item.get("Id")
                     return int(the_id) if the_id is not None else None
                 
                 # Track closest date after target (bd > target)
-                if bd > target and notes == target_notes_text:
+                if bd > target and notes is not None and target_notes_text in notes:
                     the_id = item.get("Id")
                     if the_id is not None:
                         # Keep the smallest date that's still greater than target
@@ -496,7 +496,7 @@ def parse_committee_reports_published_today(
     # Locate the <h3> section
     target_h3 = None
     for h3 in doc.xpath("//h3"):
-        if _norm(h3.xpath("string(.)")) == "Committee Reports Published Today":
+        if _norm(h3.xpath("string(.)")) == "Committee Reports Published Today" or _norm(h3.xpath("string(.)")) == "Committee Reports Published":
             target_h3 = h3
             break
     
