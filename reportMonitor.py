@@ -366,37 +366,111 @@ def fetch_document_html_as_lxml(doc_id: str):
         return None
 
 
-def get_document_id_for_date(target_date: Union[date, datetime]) -> Optional[str]:
+def get_document_id_for_date(
+    target_date: Union[str, datetime, date],
+    *,
+    base_url: str = "https://housepapers-api.parliament.uk/api/document/?DocumentTypeId=1&skip={}",
+    page_size: int = 20,
+    timeout: int = 15,
+    max_pages: int = 200,
+    target_notes_text: str = "Today's business in the Chamber and Westminster Hall",
+    retry_attempts: int = 3,
+    retry_backoff: float = 0.8,
+    session: Optional[requests.Session] = None,
+) -> Optional[int]:
     """
-    Find a business paper document published on or just before the given date.
-    Returns: document ID string if found, else None
+    Page through House Papers API to find document Id for given date.
+    Returns: int Id if found, else None.
     """
-    d = _to_date(target_date)
+    target = _to_date(target_date)
     
-    api_url = (
-        "https://business-api.parliament.uk/api/documents/search?"
-        "documentTypes=BusinessPaper&"
-        "skip=0&take=25"
-    )
+    own_session = False
+    if session is None:
+        session = requests.Session()
+        own_session = True
     
-    data = fetch_json_data(api_url)
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": "HousePapersClient/1.0 (+https://example.org)",
+    }
     
-    for item in data.get('items', []):
-        pub_date_str = item.get('publicationDate', '')
-        if not pub_date_str:
-            continue
+    try:
+        skip = 0
+        pages_visited = 0
+        total_results = None
+        closest_after = None  # Track (date, id) tuple for closest date after target
         
-        try:
-            pub_date = _to_date(pub_date_str)
-        except (ValueError, TypeError):
-            continue
+        while pages_visited < max_pages:
+            url = base_url.format(skip)
+            last_exc = None
+            
+            for attempt in range(1, retry_attempts + 1):
+                try:
+                    resp = session.get(url, headers=headers, timeout=timeout)
+                    if resp.status_code in (429, 500, 502, 503, 504):
+                        retry_after = resp.headers.get("Retry-After")
+                        sleep_s = float(retry_after) if retry_after else retry_backoff * attempt
+                        sleep(sleep_s)
+                        continue
+                    resp.raise_for_status()
+                    data = resp.json()
+                    break
+                except (requests.RequestException, ValueError) as e:
+                    last_exc = e
+                    if attempt == retry_attempts:
+                        raise
+                    sleep(retry_backoff * attempt)
+            else:
+                raise last_exc or RuntimeError("Unknown fetching error")
+            
+            if total_results is None:
+                total_results = data.get("TotalResults")
+            
+            results = data.get("Results") or []
+            if not results:
+                return None
+            
+            for item in results:
+                bd_raw = item.get("BusinessDate")
+                try:
+                    bd = _to_date(bd_raw) if bd_raw else None
+                except ValueError:
+                    bd = None
+                
+                if bd is None:
+                    continue
+
+                notes = item.get("Notes")
+                    
+                # If we've gone past target into older dates, stop searching
+                if bd < target and notes is not None and target_notes_text in notes:
+                    # Return exact match if found, otherwise closest after target
+                    return closest_after[1] if closest_after else None
+                
+                # Exact match with correct notes - return immediately
+                if bd == target and notes is not None and target_notes_text in notes:
+                    the_id = item.get("Id")
+                    return int(the_id) if the_id is not None else None
+                
+                # Track closest date after target (bd > target)
+                if bd > target and notes is not None and target_notes_text in notes:
+                    the_id = item.get("Id")
+                    if the_id is not None:
+                        # Keep the smallest date that's still greater than target
+                        if closest_after is None or bd < closest_after[0]:
+                            closest_after = (bd, int(the_id))
+            
+            skip += page_size
+            pages_visited += 1
+            
+            if total_results is not None and skip >= total_results:
+                return None
         
-        if pub_date <= d:
-            doc_id = item.get('uid', '')
-            if doc_id:
-                return doc_id
+        return None
     
-    return None
+    finally:
+        if own_session:
+            session.close()
 
 
 def split_report_title(text: str) -> tuple[str, str]:
