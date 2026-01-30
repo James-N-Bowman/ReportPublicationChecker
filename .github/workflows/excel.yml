@@ -1,4 +1,4 @@
-name: Excel test
+name: Update Report Monitor
 
 on:
   schedule:
