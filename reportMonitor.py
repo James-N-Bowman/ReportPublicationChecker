@@ -626,7 +626,7 @@ def match_order_papers_to_reports(order_papers: List[Dict[str, str]],
             reports_hc_numbers.add(hc_num)
 
     # Get current datetime for comparison
-    now = datetime.now()
+    now = datetime(2026,1,28) #datetime.now()
 
     # Process each order paper entry
     for op_row in order_papers:
