@@ -767,7 +767,7 @@ if __name__ == '__main__':
     all_reports.extend(new_reports)
 
     # Add scan record
-    scan_datetime = datetime.now()
+    scan_datetime = datetime(2026,1,28) #datetime.now()
     scan_record = {
         'Scan date': scan_datetime.strftime('%Y-%m-%d'),
         'Scan time': scan_datetime.strftime('%H:%M:%S'),
