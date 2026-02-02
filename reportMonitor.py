@@ -24,7 +24,7 @@ def write_csv(filename: str, rows: List[Dict[str, str]]):
     
     headers = list(rows[0].keys())
     
-    with open(filename, 'w', newline='', encoding='utf-8') as f:
+    with open(filename, 'w', newline='', encoding='utf-8-sig') as f:
         writer = csv.DictWriter(f, fieldnames=headers)
         writer.writeheader()
         writer.writerows(rows)
@@ -33,7 +33,7 @@ def write_csv(filename: str, rows: List[Dict[str, str]]):
 def read_csv(filename: str) -> List[Dict[str, str]]:
     """Read data from a CSV file."""
     try:
-        with open(filename, 'r', newline='', encoding='utf-8') as f:
+        with open(filename, 'r', newline='', encoding='utf-8-sig') as f:
             reader = csv.DictReader(f)
             return list(reader)
     except Exception:
