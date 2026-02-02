@@ -1,5 +1,4 @@
 from __future__ import annotations
-import base64
 import csv
 import json
 import os
@@ -9,11 +8,8 @@ from datetime import datetime, date, time
 from time import sleep
 from typing import Dict, List, Optional, Union
 
-import openpyxl
 import requests
-import xlsxwriter
 from lxml import html
-
 
 # ============================================================================
 # CSV UTILITIES
@@ -60,112 +56,6 @@ def get_existing_ids_from_csv(filename: str, id_column: str) -> set:
         return existing_ids
     
     rows = read_csv_file(filename)
-    for row in rows:
-        id_val = row.get(id_column, '').strip()
-        if id_val:
-            existing_ids.add(id_val)
-    
-    return existing_ids
-
-
-# ============================================================================
-# EXCEL UTILITIES (kept for compatibility with openpyxl reading)
-# ============================================================================
-
-class ExcelWorkbook:
-    """Context manager for Excel workbook operations."""
-    
-    def __init__(self, filename: str):
-        self.filename = filename
-        self.workbook = None
-        self.worksheets = {}
-        self.data = {}  # Store data for each worksheet
-    
-    def __enter__(self):
-        self.workbook = xlsxwriter.Workbook(self.filename)
-        return self
-    
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.workbook:
-            self.workbook.close()
-    
-    def add_data(self, sheet_name: str, rows: List[Dict[str, str]]):
-        """Add data to a worksheet (data will be written when workbook closes)."""
-        if sheet_name not in self.data:
-            self.data[sheet_name] = []
-        self.data[sheet_name].extend(rows)
-    
-    def write_all_sheets(self):
-        """Write all accumulated data to worksheets as Excel Tables."""
-        for sheet_name, rows in self.data.items():
-            if not rows:
-                continue
-            
-            # Create worksheet
-            worksheet = self.workbook.add_worksheet(sheet_name)
-            
-            # Get column headers from first row
-            headers = list(rows[0].keys())
-            
-            # Prepare data for table
-            table_data = []
-            for row in rows:
-                table_data.append([row.get(header, '') for header in headers])
-            
-            # Create table columns definition
-            columns = [{'header': header} for header in headers]
-            
-            # Calculate table range
-            last_row = len(table_data)
-            last_col = len(headers) - 1
-            
-            # Add table to worksheet
-            worksheet.add_table(0, 0, last_row, last_col, {
-                'data': table_data,
-                'columns': columns,
-                'style': 'Table Style Medium 2',
-                'name': sheet_name.replace(' ', '_')
-            })
-
-
-def read_excel_sheet(filename: str, sheet_name: str) -> List[Dict[str, str]]:
-    """Read data from an Excel worksheet."""
-    try:
-        workbook = openpyxl.load_workbook(filename, data_only=True)
-        
-        if sheet_name not in workbook.sheetnames:
-            return []
-        
-        worksheet = workbook[sheet_name]
-        
-        # Get headers from first row
-        headers = []
-        for cell in worksheet[1]:
-            headers.append(cell.value or '')
-        
-        # Read data rows
-        rows = []
-        for row in worksheet.iter_rows(min_row=2, values_only=True):
-            row_dict = {}
-            for header, value in zip(headers, row):
-                row_dict[header] = str(value) if value is not None else ''
-            rows.append(row_dict)
-        
-        workbook.close()
-        return rows
-    
-    except Exception:
-        return []
-
-
-def get_existing_ids_from_excel(filename: str, sheet_name: str, id_column: str) -> set:
-    """Read Excel sheet and return set of existing IDs from specified column."""
-    existing_ids = set()
-    
-    if not os.path.isfile(filename):
-        return existing_ids
-    
-    rows = read_excel_sheet(filename, sheet_name)
     for row in rows:
         id_val = row.get(id_column, '').strip()
         if id_val:
@@ -493,9 +383,9 @@ def split_report_title(text: str) -> tuple[str, str]:
 # DATA PROCESSING FUNCTIONS
 # ============================================================================
 
-def get_scanned_publication_ids(filename: str, sheet_name: str) -> set:
+def get_scanned_publication_ids(filename: str) -> set:
     """
-    Extract all Publication IDs from the Scans sheet.
+    Extract all Publication IDs from the Scans CSV file.
     Returns: set of publication IDs (as strings)
     """
     scanned_ids = set()
@@ -519,6 +409,7 @@ def parse_committee_reports_published_today(tree, existing_order_papers: List[Di
     Returns: list of dictionaries with parsed data
     """
     if tree is None:
+        print("Warning: HTML tree is None, cannot parse order papers")
         return []
     
     # Build set of existing (Committee Name, HC Number) pairs
@@ -530,24 +421,35 @@ def parse_committee_reports_published_today(tree, existing_order_papers: List[Di
             existing_pairs.add((committee, hc_num))
     
     tables = tree.xpath('//table')
-    for table in tables:
+    print(f"Found {len(tables)} tables in the HTML document")
+    
+    for idx, table in enumerate(tables):
         caption = table.xpath('.//caption/text()')
+        caption_text = caption[0] if caption else "No caption"
+        print(f"Table {idx + 1} caption: {caption_text}")
+        
         if caption and 'Committee Reports Published Today' in caption[0]:
+            print("Found 'Committee Reports Published Today' table!")
+            
             op_date = None
             date_para = table.xpath('preceding-sibling::p[@class="Date"]')
             if date_para:
                 date_text = date_para[-1].text_content().strip()
+                print(f"Found date paragraph: {date_text}")
                 op_date = _parse_date(date_text, date.today())
             
             if not op_date or op_date == "":
                 op_date = date.today()
+                print(f"Using today's date: {op_date}")
             
             rows_data = []
-            rows = table.xpath('.//tr')[1:]
+            rows = table.xpath('.//tr')[1:]  # Skip header row
+            print(f"Found {len(rows)} data rows in table")
             
-            for row in rows:
+            for row_idx, row in enumerate(rows):
                 cells = row.xpath('.//td')
                 if len(cells) < 4:
+                    print(f"Row {row_idx + 1}: Skipping (only {len(cells)} cells)")
                     continue
                 
                 committee_name = cells[0].text_content().strip()
@@ -555,8 +457,11 @@ def parse_committee_reports_published_today(tree, existing_order_papers: List[Di
                 hc_number = cells[2].text_content().strip()
                 date_str = cells[3].text_content().strip()
                 
+                print(f"Row {row_idx + 1}: {committee_name} | {hc_number}")
+                
                 # Skip if this pair already exists
                 if (committee_name, hc_number) in existing_pairs:
+                    print(f"  -> Skipping duplicate: ({committee_name}, {hc_number})")
                     continue
                 
                 pub_date = _parse_date(date_str, op_date)
@@ -577,8 +482,10 @@ def parse_committee_reports_published_today(tree, existing_order_papers: List[Di
                     'HC matched': ''
                 })
             
+            print(f"Parsed {len(rows_data)} new order paper entries")
             return rows_data
     
+    print("Warning: 'Committee Reports Published Today' table not found in HTML")
     return []
 
 
@@ -723,7 +630,7 @@ def filter_and_process_reports(api_url: str, reports_file: str, scans_file: str)
     """
     data = fetch_json_data(api_url)
     
-    scanned_ids = get_scanned_publication_ids(scans_file, None)
+    scanned_ids = get_scanned_publication_ids(scans_file)
     existing_ids = get_existing_ids_from_csv(reports_file, 'Publication ID')
     
     new_scan_ids = []
@@ -805,6 +712,10 @@ if __name__ == '__main__':
     all_scans = read_csv_file(SCANS_FILE)
     all_order_papers = read_csv_file(ORDER_PAPERS_FILE)
     
+    print(f"Loaded {len(all_reports)} existing reports")
+    print(f"Loaded {len(all_scans)} existing scans")
+    print(f"Loaded {len(all_order_papers)} existing order papers")
+    
     # 2. Process committee reports from API
     API_URL = 'https://committees-api.parliament.uk/api/Publications?PublicationTypeIds=1&PublicationTypeIds=12&SortOrder=PublicationDateDescending'
     
@@ -825,13 +736,20 @@ if __name__ == '__main__':
     all_scans.append(scan_record)
     
     # 3. Process order papers
+    print("\n--- Processing Order Papers ---")
     doc_id = get_document_id_for_date(scan_datetime)
     if doc_id:
+        print(f"Found document ID: {doc_id}")
         my_html = fetch_document_html_as_lxml(doc_id)
-        op_data = parse_committee_reports_published_today(my_html, all_order_papers)
-        if op_data:
-            all_order_papers.extend(op_data)
-            print(f"Added {len(op_data)} new order paper entries")
+        if my_html is not None:
+            op_data = parse_committee_reports_published_today(my_html, all_order_papers)
+            if op_data:
+                all_order_papers.extend(op_data)
+                print(f"Added {len(op_data)} new order paper entries")
+            else:
+                print("No new order paper entries found")
+        else:
+            print("Failed to fetch HTML document")
     else:
         print("Could not find order paper document for specified date")
     
