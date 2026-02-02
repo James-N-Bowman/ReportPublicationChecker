@@ -1,4 +1,5 @@
 from __future__ import annotations
+import base64
 import csv
 import json
 import os
@@ -234,19 +235,21 @@ def fetch_json_data(url: str, max_retries: int = 5, initial_delay: int = 1) -> D
     
     return {}
 
-
-def fetch_document_html_as_lxml(doc_id: str):
+def fetch_document_html_as_lxml_base64_only(doc_id: str):
     """
-    Fetch the HTML for a business paper document from parliament.uk
+    Fetch base64-encoded HTML for a business paper document from parliament.uk
     and return an lxml.html tree.
+    Use this version if the response is ALWAYS base64.
     """
     url = f"https://publications.parliament.uk/pa/cm/cmbusn/{doc_id}.htm"
     
     try:
         with urllib.request.urlopen(url, timeout=30) as response:
             raw_bytes = response.read()
-            encoding = response.headers.get_content_charset() or 'utf-8'
-            page_html = raw_bytes.decode(encoding, errors='replace')
+            
+            # Decode from base64
+            decoded_bytes = base64.b64decode(raw_bytes)
+            page_html = decoded_bytes.decode('utf-8', errors='replace')
         
         tree = html.fromstring(page_html)
         return tree
@@ -738,20 +741,34 @@ if __name__ == '__main__':
     # 3. Process order papers
     print("\n--- Processing Order Papers ---")
     doc_id = get_document_id_for_date(scan_datetime)
-    if doc_id:
-        print(f"Found document ID: {doc_id}")
-        my_html = fetch_document_html_as_lxml(doc_id)
-        if my_html is not None:
-            op_data = parse_committee_reports_published_today(my_html, all_order_papers)
-            if op_data:
-                all_order_papers.extend(op_data)
-                print(f"Added {len(op_data)} new order paper entries")
-            else:
-                print("No new order paper entries found")
+if doc_id:
+    print(f"Found document ID: {doc_id}")
+    print(f"Fetching document from: https://publications.parliament.uk/pa/cm/cmbusn/{doc_id}.htm")
+    
+    my_html = fetch_document_html_as_lxml_base64_only(doc_id)
+    
+    if my_html is not None:
+        print("Successfully parsed HTML document")
+        op_data = parse_committee_reports_published_today(my_html, all_order_papers)
+        
+        if op_data:
+            all_order_papers.extend(op_data)
+            print(f"✓ Added {len(op_data)} new order paper entries")
         else:
-            print("Failed to fetch HTML document")
+            print("⚠ No new order paper entries found (table may be empty or already processed)")
     else:
-        print("Could not find order paper document for specified date")
+        print("✗ Failed to fetch or parse HTML document")
+        print("  Possible reasons:")
+        print("  - Document ID doesn't exist")
+        print("  - Network/timeout issue")
+        print("  - Base64 decoding failed")
+        print("  - Invalid HTML structure")
+else:
+    print("✗ Could not find order paper document for specified date")
+    print(f"  Searched for date: {scan_datetime.strftime('%Y-%m-%d')}")
+    print("  Possible reasons:")
+    print("  - No document published for this date")
+    print("  - API search parameters don't match available documents")
     
     # 4. Calculate lateness for all reports
     # First write intermediate files
