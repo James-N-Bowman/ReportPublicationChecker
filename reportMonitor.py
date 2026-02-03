@@ -626,7 +626,7 @@ def match_order_papers_to_reports(order_papers: List[Dict[str, str]],
             reports_hc_numbers.add(hc_num)
 
     # Get current datetime for comparison
-    now = datetime(2026,1,28) #datetime.now()
+    now = datetime.now()
 
     # Process each order paper entry
     for op_row in order_papers:
@@ -741,7 +741,7 @@ def filter_and_process_reports(api_url: str, reports_file: str, scans_file: str)
 if __name__ == '__main__':
     REPORTS_FILE = 'docs/Reports.csv'
     SCANS_FILE = 'docs/Scans.csv'
-    ORDER_PAPERS_FILE = 'docs/Order Papers.csv'
+    ORDER_PAPERS_FILE = 'docs/OrderPapers.csv'
 
     # Collect all data
     all_reports = []
@@ -767,7 +767,7 @@ if __name__ == '__main__':
     all_reports.extend(new_reports)
 
     # Add scan record
-    scan_datetime = datetime(2026,1,28) #datetime.now()
+    scan_datetime = datetime.now()
     scan_record = {
         'Scan date': scan_datetime.strftime('%Y-%m-%d'),
         'Scan time': scan_datetime.strftime('%H:%M:%S'),
