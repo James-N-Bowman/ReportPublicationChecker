@@ -418,7 +418,8 @@ def parse_committee_reports_published_today(
     # Locate the <h3> section
     target_h3 = None
     for h3 in doc.xpath("//h3"):
-        if _norm(h3.xpath("string(.)")) == "Committee Reports Published Today":
+        h3_normed_string = _norm(h3.xpath("string(.)"))
+        if h3_normed_string != None and "Committee Reports Published" in h3_normed_string:
             target_h3 = h3
             break
 
@@ -432,35 +433,67 @@ def parse_committee_reports_published_today(
         if isinstance(sib.tag, str) and sib.tag.lower() == "h5":
             committee = _norm(sib.text_content())
 
-            p = sib.getnext()
-            while p is not None and (not isinstance(p.tag, str) or p.tag.lower() != "p"):
-                if isinstance(p.tag, str) and p.tag.lower() in ("h5", "h3", "h2", "h1"):
-                    p = None
+            # Walk forward until we find a <p> tag, unless we hit a heading first
+            p1 = sib.getnext()
+            while p1 is not None:
+                # If this is a heading tag, stop immediately
+                if isinstance(p1.tag, str) and p1.tag.lower() in ("h1", "h2", "h3", "h5"):
+                    p1 = None
                     break
-                p = p.getnext()
 
-            if p is None:
-                sib = sib.getnext()
-                continue
-
-            # Extract report description
-            strongs = p.xpath(".//strong")
-            report_description = _norm("".join(strongs[0].itertext())) if strongs else ""
-
-            # Extract publication date/time
-            op_rep_time = ""
-            op_rep_date = ""
-            if len(strongs) >= 2:
-                datetime_string = _norm("".join(strongs[1].itertext()))
-                op_rep_date, op_rep_time = parse_date_time(datetime_string, op_date)
-
-            # Extract HC number
-            hc_number = ""
-            for sp in p.xpath('.//span[contains(@class, "Roman")]'):
-                txt = _norm("".join(sp.itertext()))
-                if txt.startswith("HC "):
-                    hc_number = txt
+                # If this is a <p> tag, stop the loop
+                if isinstance(p1.tag, str) and p1.tag.lower() == "p":
                     break
+
+                # Otherwise, keep going
+                p1 = p1.getnext()
+
+            if p1 is not None:
+                # Find all <strong> tags in p
+                strongs = p1.xpath(".//strong")
+
+                if strongs:
+                    first_strong = strongs[0]
+
+                    # Extract the bolded part (report description)
+                    description_text = first_strong.text_content()
+                    report_description = _norm(description_text)
+
+                    # Extract the text immediately after <strong> (HC number)
+                    tail_text = first_strong.tail or ""
+                    hc_number = _norm(tail_text)
+                else:
+                    report_description = ""
+                    hc_number = ""
+
+            # Walk forward until we find a <p> tag, unless we hit a heading first
+            p2 = p1.getnext()
+            while p2 is not None:
+                # If this is a heading tag, stop immediately
+                if isinstance(p2.tag, str) and p2.tag.lower() in ("h1", "h2", "h3", "h5"):
+                    p2 = None
+                    break
+
+                # If this is a <p> tag, stop the loop
+                if isinstance(p2.tag, str) and p2.tag.lower() == "p":
+                    break
+
+                # Otherwise, keep going
+                p2 = p2.getnext()
+
+
+            if p2 is not None:
+                # Find all <strong> tags in p
+                p2strongs = p2.xpath(".//strong")
+
+
+                op_rep_time = ""
+                op_rep_date = ""
+                if p2strongs:
+                    first_p2strong = p2strongs[0]
+                    op_rep_datetime_text = first_p2strong.text_content()
+                    datetime_string = _norm(op_rep_datetime_text)
+                    op_rep_date, op_rep_time = parse_date_time(datetime_string, op_date)
 
             # Check if this combination already exists
             op_date_str = str(op_date)
