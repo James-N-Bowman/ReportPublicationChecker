@@ -164,9 +164,7 @@ def _parse_time(s: str):
 
 def _parse_date(s: str, op_date: date):
     """Return a datetime.date if present, else empty string."""
-    cleaned = _TIME_RE.sub("", s.replace(".", ":"), count=1)
-    cleaned = re.sub(r"\s*,\s*", " ", cleaned)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    cleaned = re.sub(r"\s+", " ", s).strip()
 
     m = _DATE_RE.match(cleaned)
     if not m:
@@ -192,8 +190,13 @@ def parse_date_time(text: str, op_date: date):
     if not isinstance(text, str):
         raise TypeError("text must be a string")
 
-    t = _parse_time(text)
-    d = _parse_date(text, op_date)
+    if ',' in text:
+        parts = text.split(',', 1)
+        text_date = parts[0].strip()
+        text_time = parts[1].strip()
+
+    t = _parse_time(text_time)
+    d = _parse_date(text_date, op_date)
 
     if d == "":
         d = op_date
