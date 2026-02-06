@@ -241,6 +241,10 @@ def get_document_id_for_date(
         skip = 0
         pages_visited = 0
         total_results = None
+        
+        # Track the closest date after target
+        closest_after = None
+        closest_after_id = None
 
         while pages_visited < max_pages:
             url = base_url.format(skip)
@@ -282,20 +286,32 @@ def get_document_id_for_date(
                 if bd is None:
                     continue
 
+                # If date is before target, we can stop searching (assuming sorted)
                 if bd < target:
-                    return None
+                    # Return closest match found so far, if any
+                    return closest_after_id
 
-                if bd == target and (item.get("Notes") or "") == notes_text:
+                # Exact match with correct notes
+                if bd == target and notes_text in (item.get("Notes") or ""):
                     the_id = item.get("Id")
                     return int(the_id) if the_id is not None else None
+
+                # Track closest date after target
+                if bd >= target:
+                    if notes_text in (item.get("Notes") or ""):
+                        if closest_after is None or bd < closest_after:
+                            closest_after = bd
+                            the_id = item.get("Id")
+                            closest_after_id = int(the_id) if the_id is not None else None
 
             skip += page_size
             pages_visited += 1
 
             if total_results is not None and skip >= total_results:
-                return None
+                break
 
-        return None
+        # Return the closest match found, or None
+        return closest_after_id
 
     finally:
         if own_session:
